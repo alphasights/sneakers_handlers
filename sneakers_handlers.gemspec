@@ -6,7 +6,7 @@ require 'sneakers_handlers/version'
 Gem::Specification.new do |spec|
   spec.name          = "sneakers_handlers"
   spec.version       = SneakersHandlers::VERSION
-  spec.authors       = ["Abe Petrillo"]
+  spec.authors       = ["John Bohn, Abe Petrillo, Brian Storti"]
   spec.email         = ["abe.petrillo@gmail.com"]
 
   spec.summary       = %q{Adds Handlers to use with Sneakers}
