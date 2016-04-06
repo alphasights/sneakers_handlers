@@ -22,7 +22,38 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+The gem introduces two handlers you can use as part of your sneaker workers: `SneakersHandlers::DeadLetter` and `SneakersHandlers::RetryHandler`
+
+### Using the `SneakersHandlers::DeadLetter` handler
+
+TODO
+
+## Using the `SneakersHandlers::RetryHandler` handler
+
+When defining your worker, you have the following extra options:
+
+`max_retry` [optional] : The number of times a message will be processed after a rejection
+
+`x-dead-letter-routing-key` [mandatory] : The routing key that the retry queue will be bound to, usually it is the name of the original queue, for example:
+
+```ruby
+class MyWorker
+  include Sneakers::Worker
+  from_queue "my-app.resource_processor",
+      durable: true,
+      ack: true,
+      exchange: "domain_events",
+      exchange_type: :topic,
+      routing_key: "resources.lifecycle.*",
+      handler: Sneakers::Handlers::RetryHandler,
+      arguments: { "x-dead-letter-exchange" => "domain_events.dlx",
+                   "x-dead-letter-routing-key" => "my-app.resource_processor" }
+
+  def work(payload)
+    ...
+  end
+end                 
+```
 
 ## Development
 
@@ -33,4 +64,3 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/sneakers_handlers.
-
