@@ -18,7 +18,7 @@
 #   routing_key: "my_routing_key",
 #   handler: Sneakers::Handlers::RetryHandler,
 #   max_retry: 10,
-#   arguments: { "x-dead-letter-exchange" => "dlx.domain_events" }
+#   arguments: { "x-dead-letter-exchange" => "dlx.domain_events",
 #                "x-dead-letter-routing-key" => "my-app.queue_name" }}
 
 module SneakersHandlers
@@ -28,7 +28,7 @@ module SneakersHandlers
       @channel = channel
       @queue = queue
       @routing_key = options[:routing_key]
-      @max_retry = options.fetch(:max_retry, 5)
+      @max_retry = options[:max_retry] || 5
 
       create_dlx(channel, queue, options)
     end
@@ -38,11 +38,8 @@ module SneakersHandlers
     end
 
     def reject(hdr, props, msg, requeue = false)
-      if requeue
-        @channel.reject(hdr.delivery_tag, requeue)
-      else
-        retry_message(hdr, props, msg)
-      end
+      puts "REJECTED!"
+      retry_message(hdr, props, msg)
     end
 
     def error(hdr, props, msg, _err)
@@ -72,22 +69,27 @@ module SneakersHandlers
     end
 
     def retry_message(hdr, props, msg)
+      puts "hit the retry method \n"
       headers = props[:headers] || {}
-
-      retry_count = headers.fetch("x-retry-count", 1)
+      puts "got the headers"
+      retry_count = headers["x-retry-count"] || 1
+      puts "got the retry count"
+      puts "comparing count: #{retry_count}"
+      puts "comparing max_retry: #{@max_retry}"
       if retry_count >= @max_retry
-        @channel.default_exchange.publish(msg, routing_key: @dlx_queue.name)
+        puts "hit max count: #{@max_retry}\n"
+        @channel.reject(hdr.delivery_tag)
       else
         Sneakers.logger.info do
           "Retrying message: queue=#{@queue.name} retry_count=#{retry_count}."
         end
 
+        puts "republishing #{msg} on #{@queue.name}\n"
         @channel.default_exchange.publish(msg,
                                           routing_key: @queue.name,
                                           headers: { "x-retry-count": retry_count + 1 })
+        @channel.acknowledge(hdr.delivery_tag, false)
       end
-
-      @channel.acknowledge(hdr.delivery_tag, false)
     end
   end
 end

@@ -1,51 +1,79 @@
 require "test_helper"
+require "sneakers"
+require "sneakers/runner"
+require "rabbitmq/http/client"
+require 'pry'
 
-class SneakersHandlers::RetryHandlerTest < Minitest::Test
-  extend MiniTest::Spec::DSL
-  let(:channel) { Minitest::Mock.new() }
-  let(:queue) {
-    q = Minitest::Mock.new
-    q.expect :name, "test.queue"
-    q
-  }
-  let(:dlx_queue) { Minitest::Mock.new() }
-  let(:dlx_exchange) { Minitest::Mock.new() }
-  let(:options) do
-    {
-      routing_key: "pistachio.test",
-      exchange_options: {
-        type: :fanout,
-        durable: true
-      },
-      queue_options: {
-        durable: true,
-        arguments: {
-          "x-dead-letter-exchange" => "test.dlx",
-          "x-dead-letter-routing-key" => "dlx-routing-key"
-        }
-      }
-    }
-  end
+class SneakersHandlers::AcceptanceTest < Minitest::Test
 
-  def test_create_dead_letter_exchange_and_queue
-    channel.expect :exchange, dlx_exchange, ['test.dlx', {
-      type: :fanout,
-      durable: true,
-    }]
+  class TestWorker
+    include Sneakers::Worker
 
-    channel.expect :queue, dlx_queue, ["test.queue.dlx", {
-      durable: true
-    }]
+    from_queue "sneaker_handlers.dead_letter_success_test",
+    ack: true,
+    durable: false,
+    exchange: "sneakers_handlers",
+    exchange_type: :topic,
+    routing_key: "sneakers_handlers.dead_letter_test",
+    handler: SneakersHandlers::RetryHandler,
+    arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
+                 "x-dead-letter-routing-key" => "sneaker_handlers.dead_letter_success_test" }
 
-    dlx_queue.expect(:bind, nil, [dlx_exchange, routing_key: "dlx-routing-key"])
+    def work(payload)
+      JSON.parse(payload)
+      response = payload["response"]
+      x = JSON.parse(payload)["response"] + "!"
+      puts "WORKING: #{x}\n"
 
-    SneakersHandlers::RetryHandler.new(channel, queue, options)
-  end
-
-  def test_raises_key_error_if_xdeadletterexchange_argument_not_set
-    options[:queue_options][:arguments].delete("x-dead-letter-exchange")
-    assert_raises KeyError do
-      SneakersHandlers::RetryHandler.new(channel, queue, options)
+      return reject!
     end
+  end
+
+  def test_dead_letter_messages
+    delete_test_queues!
+    configure_sneakers
+
+    exchange = channel.topic("sneakers_handlers", durable: false)
+
+    worker = TestWorker.new
+    worker.run
+
+    json = <<-JSON
+      {
+        "response":"reject"
+      }
+    JSON
+
+    1.times do
+      exchange.publish(json, routing_key: "sneakers_handlers.dead_letter_test")
+    end
+
+    sleep 10
+
+    dead_letter = channel.queue(TestWorker.queue_name + ".dlx")
+    assert_equal 0, dead_letter.message_count
+  end
+
+  private
+
+  def channel
+    @channel ||= begin
+                   connection = Bunny.new.start
+                   connection.create_channel
+                 end
+  end
+
+  def delete_test_queues!
+    admin = RabbitMQ::HTTP::Client.new("http://127.0.0.1:15672/", username: "guest", password: "guest")
+    queues = admin.list_queues
+    queues.each do |q|
+      name = q.name
+      admin.delete_queue('/', name) if name.start_with?("sneaker_handlers")
+    end
+  end
+
+  def configure_sneakers
+    Sneakers.configure
+    Sneakers.logger.level = Logger::ERROR
   end
 end
