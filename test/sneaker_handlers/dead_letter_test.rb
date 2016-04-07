@@ -21,6 +21,7 @@ class SneakersHandlers::DeadLetterTest < Minitest::Test
         durable: true,
         arguments: {
           "x-dead-letter-exchange" => "test.dlx",
+          "x-dead-letter-routing-key" => "dlx-routing-key"
         }
       }
     }
@@ -36,7 +37,7 @@ class SneakersHandlers::DeadLetterTest < Minitest::Test
       durable: true
     }]
 
-    dlx_queue.expect(:bind, nil,[dlx_exchange, routing_key: "pistachio.test"])
+    dlx_queue.expect(:bind, nil,[dlx_exchange, routing_key: "dlx-routing-key"])
 
     SneakersHandlers::DeadLetter.new(channel, queue, options)
   end
