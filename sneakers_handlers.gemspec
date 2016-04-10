@@ -27,4 +27,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "dotenv"
   spec.add_development_dependency "sneakers", "~> 2.3"
   spec.add_development_dependency "pry-byebug"
+  spec.add_development_dependency "minitest-reporters"
 end
