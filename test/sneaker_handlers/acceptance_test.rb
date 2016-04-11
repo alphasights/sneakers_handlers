@@ -13,15 +13,10 @@ class SneakersHandlers::AcceptanceTest < Minitest::Test
     delete_test_queues!
     configure_sneakers
 
-    pid = fork do
-      runner = Sneakers::Runner.new([DeadLetterWorkerFailure, DeadLetterWorkerSuccess])
-      runner.run
-    end
-
-    # Need some time to create the queues
-    sleep 0.1
-
     exchange = channel.topic("sneakers_handlers", durable: false)
+
+    DeadLetterWorkerFailure.new.run
+    DeadLetterWorkerSuccess.new.run
 
     2.times do
       exchange.publish("test message", routing_key: "sneakers_handlers.dead_letter_test")
@@ -33,8 +28,6 @@ class SneakersHandlers::AcceptanceTest < Minitest::Test
 
     assert_equal 2, failure_dead_letter_queue.message_count
     assert_equal 0, success_dead_letter_queue.message_count
-
-    Process.kill("TERM", pid)
   end
 
   private
