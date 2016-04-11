@@ -3,6 +3,7 @@ require "sneakers"
 require "sneakers/runner"
 require "rabbitmq/http/client"
 require 'pry'
+require 'json'
 
 class SneakersHandlers::AcceptanceTest < Minitest::Test
 
@@ -23,8 +24,6 @@ class SneakersHandlers::AcceptanceTest < Minitest::Test
       JSON.parse(payload)
       response = payload["response"]
       x = JSON.parse(payload)["response"] + "!"
-      puts "WORKING: #{x}\n"
-
       return reject!
     end
   end
@@ -48,10 +47,10 @@ class SneakersHandlers::AcceptanceTest < Minitest::Test
       exchange.publish(json, routing_key: "sneakers_handlers.dead_letter_test")
     end
 
-    sleep 10
+    sleep 5
 
     dead_letter = channel.queue(TestWorker.queue_name + ".dlx")
-    assert_equal 0, dead_letter.message_count
+    assert_equal 1, dead_letter.message_count
   end
 
   private
@@ -64,12 +63,8 @@ class SneakersHandlers::AcceptanceTest < Minitest::Test
   end
 
   def delete_test_queues!
-    admin = RabbitMQ::HTTP::Client.new("http://127.0.0.1:15672/", username: "guest", password: "guest")
-    queues = admin.list_queues
-    queues.each do |q|
-      name = q.name
-      admin.delete_queue('/', name) if name.start_with?("sneaker_handlers")
-    end
+    channel.queue_delete(TestWorker.queue_name)
+    channel.queue_delete("#{TestWorker.queue_name}.dlx")
   end
 
   def configure_sneakers

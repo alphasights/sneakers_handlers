@@ -38,7 +38,6 @@ module SneakersHandlers
     end
 
     def reject(hdr, props, msg, requeue = false)
-      puts "REJECTED!"
       retry_message(hdr, props, msg)
     end
 
@@ -69,22 +68,15 @@ module SneakersHandlers
     end
 
     def retry_message(hdr, props, msg)
-      puts "hit the retry method \n"
       headers = props[:headers] || {}
-      puts "got the headers"
       retry_count = headers["x-retry-count"] || 1
-      puts "got the retry count"
-      puts "comparing count: #{retry_count}"
-      puts "comparing max_retry: #{@max_retry}"
       if retry_count >= @max_retry
-        puts "hit max count: #{@max_retry}\n"
         @channel.reject(hdr.delivery_tag)
       else
         Sneakers.logger.info do
           "Retrying message: queue=#{@queue.name} retry_count=#{retry_count}."
         end
 
-        puts "republishing #{msg} on #{@queue.name}\n"
         @channel.default_exchange.publish(msg,
                                           routing_key: @queue.name,
                                           headers: { "x-retry-count": retry_count + 1 })

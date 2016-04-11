@@ -1,5 +1,5 @@
 machine:
   services:
-    - rabbitmq
+    - rabbitmq-server
   ruby:
     version: 2.3.0
