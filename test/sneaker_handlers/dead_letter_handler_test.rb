@@ -1,9 +1,8 @@
 require "test_helper"
-
 require "support/dead_letter_worker_failure"
 require "support/dead_letter_worker_success"
 
-class SneakersHandlers::DeadLetterTest < Minitest::Test
+class SneakersHandlers::DeadLetterHandlerTest < Minitest::Test
 
   def test_dead_letter_messages
     delete_test_queues!

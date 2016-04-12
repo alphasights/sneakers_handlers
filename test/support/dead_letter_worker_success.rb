@@ -9,7 +9,7 @@ class DeadLetterWorkerFailure
     exchange: "sneakers_handlers",
     exchange_type: :topic,
     routing_key: "sneakers_handlers.dead_letter_test",
-    handler: SneakersHandlers::DeadLetter,
+    handler: SneakersHandlers::DeadLetterHandler,
     arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
                  "x-dead-letter-routing-key" => "sneaker_handlers.dead_letter_failure_test" }
 
