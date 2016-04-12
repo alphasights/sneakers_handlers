@@ -1,15 +1,8 @@
 require "test_helper"
 require "sneakers"
-require "sneakers/runner"
-require "rabbitmq/http/client"
-require 'pry'
-require 'json'
-require 'test_worker'
+require "support/test_worker"
 
 class SneakersHandlers::AcceptanceTest < Minitest::Test
-
-
-
   def test_max_retry_goes_to_dlx
     delete_test_queues!
     configure_sneakers
@@ -19,13 +12,7 @@ class SneakersHandlers::AcceptanceTest < Minitest::Test
     worker = TestWorker.new
     worker.run
 
-    json = <<-JSON
-      {
-        "response":"reject"
-      }
-    JSON
-
-    exchange.publish(json, routing_key: "sneakers_handlers.dead_letter_test")
+    exchange.publish("{}", routing_key: "sneakers_handlers.dead_letter_test")
 
     sleep 5 #wait for the worker to deal with messages
 

@@ -12,9 +12,6 @@ class TestWorker
                "x-dead-letter-routing-key" => "sneaker_handlers.dead_letter_success_test" }
 
   def work(payload)
-    JSON.parse(payload)
-    response = payload["response"]
-    x = JSON.parse(payload)["response"] + "!"
     return reject!
   end
 end
