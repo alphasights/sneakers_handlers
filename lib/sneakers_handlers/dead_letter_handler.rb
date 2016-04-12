@@ -1,5 +1,5 @@
 module SneakersHandlers
-  class DeadLetter < ::Sneakers::Handlers::Oneshot
+  class DeadLetterHandler < ::Sneakers::Handlers::Oneshot
     def initialize(channel, queue, options)
       super
 

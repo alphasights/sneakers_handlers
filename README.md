@@ -22,7 +22,7 @@ Or install it yourself as:
 
 ## Usage
 
-The gem introduces two handlers you can use as part of your sneaker workers: `SneakersHandlers::DeadLetter` and `SneakersHandlers::RetryHandler`
+The gem introduces two handlers you can use as part of your sneaker workers: `SneakersHandlers::DeadLetterHandler` and `SneakersHandlers::RetryHandler`
 
 ## Using the `SneakersHandlers::RetryHandler` handler
 
