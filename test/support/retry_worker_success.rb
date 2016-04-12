@@ -1,4 +1,4 @@
-class TestWorker
+class RetryWorkerSuccess
   include Sneakers::Worker
 
   from_queue "sneaker_handlers.retry_success_test",
@@ -12,6 +12,6 @@ class TestWorker
                "x-dead-letter-routing-key" => "sneaker_handlers.retry_success_test" }
 
   def work(payload)
-    return reject!
+    return ack!
   end
 end

@@ -1,51 +1,44 @@
 require "test_helper"
 
+require "support/dead_letter_worker_failure"
+require "support/dead_letter_worker_success"
+
 class SneakersHandlers::DeadLetterTest < Minitest::Test
-  extend MiniTest::Spec::DSL
-  let(:channel) { Minitest::Mock.new() }
-  let(:queue) {
-    q = Minitest::Mock.new
-    q.expect :name, "test.queue"
-    q
-  }
-  let(:dlx_queue) { Minitest::Mock.new() }
-  let(:dlx_exchange) { Minitest::Mock.new() }
-  let(:options) do
-    {
-      routing_key: "pistachio.test",
-      exchange_options: {
-        type: :fanout,
-        durable: true
-      },
-      queue_options: {
-        durable: true,
-        arguments: {
-          "x-dead-letter-exchange" => "test.dlx",
-          "x-dead-letter-routing-key" => "dlx-routing-key"
-        }
-      }
-    }
+
+  def test_dead_letter_messages
+    delete_test_queues!
+
+    exchange = channel.topic("sneakers_handlers", durable: false)
+
+    DeadLetterWorkerFailure.new.run
+    DeadLetterWorkerSuccess.new.run
+
+    2.times do
+      exchange.publish("test message", routing_key: "sneakers_handlers.dead_letter_test")
+    end
+
+    sleep 0.1
+
+    success_dead_letter_queue = channel.queue(DeadLetterWorkerSuccess.queue_name + ".dlx")
+    failure_dead_letter_queue = channel.queue(DeadLetterWorkerFailure.queue_name + ".dlx")
+
+    assert_equal 2, failure_dead_letter_queue.message_count
+    assert_equal 0, success_dead_letter_queue.message_count
   end
 
-  def test_create_dead_letter_exchange_and_queue
-    channel.expect :exchange, dlx_exchange, ['test.dlx', {
-       type: :fanout,
-       durable: true,
-     }]
+  private
 
-    channel.expect :queue, dlx_queue, ["test.queue.dlx", {
-      durable: true
-    }]
-
-    dlx_queue.expect(:bind, nil,[dlx_exchange, routing_key: "dlx-routing-key"])
-
-    SneakersHandlers::DeadLetter.new(channel, queue, options)
+  def channel
+    @channel ||= begin
+                   connection = Bunny.new.start
+                   connection.create_channel
+                 end
   end
 
-  def test_raises_key_error_if_xdeadletterexchange_argument_not_set
-    options[:queue_options][:arguments].delete("x-dead-letter-exchange")
-    assert_raises KeyError do
-      SneakersHandlers::DeadLetter.new(channel, queue, options)
+  def delete_test_queues!
+    [DeadLetterWorkerFailure, DeadLetterWorkerSuccess].each do |worker|
+      channel.queue_delete(worker.queue_name)
+      channel.queue_delete(worker.queue_name + ".dlx")
     end
   end
 end

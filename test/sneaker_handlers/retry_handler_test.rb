@@ -1,5 +1,6 @@
 require "test_helper"
-require "support/test_worker"
+require "support/retry_worker_failure"
+require "support/retry_worker_success"
 
 class SneakersHandlers::RetryHandlerTest < Minitest::Test
   def test_max_retry_goes_to_dlx
@@ -7,14 +8,20 @@ class SneakersHandlers::RetryHandlerTest < Minitest::Test
 
     exchange = channel.topic("sneakers_handlers", durable: false)
 
-    TestWorker.new.run
+    RetryWorkerFailure.new.run
+    RetryWorkerSuccess.new.run
 
-    exchange.publish("{}", routing_key: "sneakers_handlers.retry_test")
+    2.times do
+      exchange.publish("{}", routing_key: "sneakers_handlers.retry_test")
+    end
 
-    sleep 0.1 #wait for the worker to deal with messages
+    sleep 0.1 # wait for the worker to deal with messages
 
-    dead_letter = channel.queue(TestWorker.queue_name + ".dlx")
-    assert_equal 1, dead_letter.message_count
+    success_dead_letter_queue = channel.queue(RetryWorkerSuccess.queue_name + ".dlx")
+    failure_dead_letter_queue = channel.queue(RetryWorkerFailure.queue_name + ".dlx")
+
+    assert_equal 2, failure_dead_letter_queue.message_count
+    assert_equal 0, success_dead_letter_queue.message_count
   end
 
   private
@@ -27,7 +34,9 @@ class SneakersHandlers::RetryHandlerTest < Minitest::Test
   end
 
   def delete_test_queues!
-    channel.queue_delete(TestWorker.queue_name)
-    channel.queue_delete("#{TestWorker.queue_name}.dlx")
+    [RetryWorkerFailure, RetryWorkerSuccess].each do |worker|
+      channel.queue_delete(worker.queue_name)
+      channel.queue_delete(worker.queue_name + ".dlx")
+    end
   end
 end
