@@ -1,8 +1,4 @@
-require 'pry-byebug'
 require "test_helper"
-require "sneakers"
-require "sneakers/runner"
-require "rabbitmq/http/client"
 
 require_relative "workers/dead_letter_worker_failure"
 require_relative "workers/dead_letter_worker_success"
@@ -11,7 +7,6 @@ class SneakersHandlers::AcceptanceTest < Minitest::Test
 
   def test_dead_letter_messages
     delete_test_queues!
-    configure_sneakers
 
     exchange = channel.topic("sneakers_handlers", durable: false)
 
@@ -40,16 +35,9 @@ class SneakersHandlers::AcceptanceTest < Minitest::Test
   end
 
   def delete_test_queues!
-    admin = RabbitMQ::HTTP::Client.new("http://127.0.0.1:15672/", username: "guest", password: "guest")
-    queues = admin.list_queues
-    queues.each do |q|
-      name = q.name
-      admin.delete_queue('/', name) if name.start_with?("sneaker_handlers")
+    [DeadLetterWorkerFailure, DeadLetterWorkerSuccess].each do |worker|
+      channel.queue_delete(worker.queue_name)
+      channel.queue_delete(worker.queue_name + ".dlx")
     end
-  end
-
-  def configure_sneakers
-    Sneakers.configure
-    Sneakers.logger.level = Logger::ERROR
   end
 end

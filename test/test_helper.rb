@@ -1,20 +1,12 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __FILE__)
-require 'dotenv'
-Dotenv.load
-require 'sneakers_handlers'
-require 'minitest/autorun'
+require "dotenv"
+require "sneakers_handlers"
+require "minitest/autorun"
 require "minitest/reporters"
-Minitest::Reporters.use! Minitest::Reporters::DefaultReporter.new(color: true)
-
 require "sneakers"
 
-Sneakers.configure({
-  amqp: ENV["RABBITMQ_URL"],
-  vhost: ENV["RABBITMQ_VHOST"],
-  heartbeat: 10,
-  prefetch: Integer(ENV["RABBITMQ_PREFETCH"] || 5),
-  workers: Integer(ENV["RABBITMQ_WORKERS"] || 1),
-  threads: Integer(ENV["RABBITMQ_THREADS"] || 5)
-})
+Dotenv.load
+Minitest::Reporters.use! Minitest::Reporters::DefaultReporter.new(color: true)
 
-Sneakers.logger.level = Integer(ENV["SNEAKERS_LOG_LEVEL"] || Logger::INFO)
+Sneakers.configure
+Sneakers.logger.level = Logger::ERROR
