@@ -13,7 +13,7 @@ Gem::Specification.new do |spec|
   spec.description   = %q{Adds handlers to support retry and custom shoveling}
   spec.homepage      = "https://github.com/alphasights/sneakers_handlers"
 
-  spec.metadata['allowed_push_host'] = 'http://mygemserver.com'
+  spec.metadata['allowed_push_host'] = 'https://rubygems.org'
 
   spec.files         = `git ls-files -z`.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
   spec.bindir        = "exe"
