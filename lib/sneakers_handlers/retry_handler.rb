@@ -76,7 +76,6 @@ module SneakersHandlers
         Sneakers.logger.info do
           "Retrying message: queue=#{@queue.name} retry_count=#{retry_count}."
         end
-
         @channel.default_exchange.publish(msg,
                                           routing_key: @queue.name,
                                           headers: { "x-retry-count": retry_count + 1 })
