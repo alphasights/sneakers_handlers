@@ -7,9 +7,10 @@ module SneakersHandlers
       @channel = channel
       @options = options
       @delays = options[:delays] || [1.second, 10.seconds, 1.minute, 10.minutes]
+      create_error_exchange!
 
       Array(@options[:routing_key]).each do |key|
-        queue.bind(primary_exchange, routing_key: key + ".*")
+        queue.bind(primary_exchange, routing_key: queue.name + "." + key + ".*")
       end
     end
 
@@ -36,7 +37,7 @@ module SneakersHandlers
     def retry_message(delivery_info, properties, message, reason)
       attempt_number = death_count(properties[:headers])
 
-      routing_key_segments = delivery_info[:routing_key].split(".")
+      routing_key_segments = (queue.name + "." + delivery_info[:routing_key].gsub(queue.name + ".", "")).split(".")
       routing_key_segments.pop if Integer(routing_key_segments.last) rescue nil
 
       if attempt_number < @delays.length
@@ -54,7 +55,7 @@ module SneakersHandlers
       else
         log("msg=erroring, count=#{attempt_number}, properties=#{properties}")
 
-        error_exchange.publish(message, routing_key: delivery_info[:routing_key])
+        channel.reject(delivery_info.delivery_tag)
       end
 
       acknowledge(delivery_info, properties, message)
@@ -96,13 +97,13 @@ module SneakersHandlers
       @primary_exchange ||= create_exchange("#{options[:exchange]}")
     end
 
-    def error_exchange
+    def create_error_exchange!
       @error_exchange ||= create_exchange("#{options[:exchange]}.error").tap do |exchange|
         queue = @channel.queue("#{@queue.name}.error", durable: durable_queues?)
 
         Array(@options[:routing_key]).each do |key|
-          queue.bind(exchange, routing_key: key)
-          queue.bind(exchange, routing_key: key + ".*")
+          queue.bind(exchange, routing_key: @queue.name + "." + key)
+          queue.bind(exchange, routing_key: @queue.name + "." + key + ".*")
         end
       end
     end
