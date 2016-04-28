@@ -49,7 +49,34 @@ class MyWorker
   def work(payload)
     ...
   end
-end                 
+end
+```
+
+## Using the `SneakersHandlers::ExponentialBackoffHandler` handler
+
+Exponential Backoff isn't really the right phrase for this. It's more
+static configurable backoff. Plan on updating the name in the future.
+
+When defining your worker, you have the following extra options:
+
+`delay` [required] : An array containing the number of seconds to pause between retries
+
+```ruby
+class MyWorker
+  include Sneakers::Worker
+  from_queue "my-app.resource_processor",
+      durable: true,
+      ack: true,
+      exchange: "domain_events",
+      exchange_type: :topic,
+      routing_key: "resources.lifecycle.*",
+      handler: SneakersHandlers::ExponentialBackoffHandler,
+      delay: [1.second, 10.seconds, 1.minute, 10.minutes]
+
+  def work(payload)
+    ...
+  end
+end
 ```
 
 ## Development
