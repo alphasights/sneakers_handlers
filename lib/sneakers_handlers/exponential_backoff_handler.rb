@@ -1,12 +1,15 @@
 module SneakersHandlers
   class ExponentialBackoffHandler
-    attr_reader :queue, :channel, :options, :delays
+    attr_reader :queue, :channel, :options, :max_retries
+
+    DEFAULT_MAX_RETRY_ATTEMPTS = 25
 
     def initialize(channel, queue, options)
       @queue = queue
       @channel = channel
       @options = options
-      @delays = options[:delays] || [1.second, 10.seconds, 1.minute, 10.minutes]
+      @max_retries = options[:max_retries] || DEFAULT_MAX_RETRY_ATTEMPTS
+
       create_error_exchange!
 
       Array(@options[:routing_key]).each do |key|
@@ -15,10 +18,10 @@ module SneakersHandlers
     end
 
     def acknowledge(delivery_info, _, _)
-      @channel.acknowledge(delivery_info.delivery_tag, false)
+      channel.acknowledge(delivery_info.delivery_tag, false)
     end
 
-    def reject(delivery_info, properties, message)
+    def reject(delivery_info, properties, message, _requeue = true)
       retry_message(delivery_info, properties, message, :reject)
     end
 
@@ -30,7 +33,8 @@ module SneakersHandlers
       retry_message(delivery_info, properties, message, :timeout)
     end
 
-    def noop(delivery_info, properties, message); end
+    def noop(_delivery_info, _properties, _message)
+    end
 
     private
 
@@ -40,10 +44,10 @@ module SneakersHandlers
       routing_key_segments = (queue.name + "." + delivery_info[:routing_key].gsub(queue.name + ".", "")).split(".")
       routing_key_segments.pop if Integer(routing_key_segments.last) rescue nil
 
-      if attempt_number < @delays.length
-        delay = @delays[attempt_number]
+      if attempt_number < max_retries
+        delay = seconds_to_delay(attempt_number)
 
-        log("msg=retrying, delay=#{delay}, count=#{attempt_number}, properties=#{properties}")
+        log("msg=retrying, delay=#{delay}, count=#{attempt_number}, properties=#{properties}, reason=#{reason}")
 
         routing_key_segments << delay
         routing_key = routing_key_segments.join(".")
@@ -71,7 +75,7 @@ module SneakersHandlers
 
     def log(message)
       Sneakers.logger.debug do
-        "DelayedRetryHandler handler [queue=#{@primary_queue_name}] #{message}"
+        "[#{self.class}] [queue=#{@primary_queue_name}] #{message}"
       end
     end
 
@@ -110,13 +114,17 @@ module SneakersHandlers
 
     def create_retry_queue!(delay)
       @channel.queue("#{queue.name}.retry.#{delay}",
-        durable: durable_queues?,
-        arguments: {
-          :"x-dead-letter-exchange" => options[:exchange],
-          :"x-message-ttl" => delay * 1_000,
-          :"x-expires" => delay * 1_000 * 2
-        }
+       durable: durable_queues?,
+       arguments: {
+         :"x-dead-letter-exchange" => options[:exchange],
+         :"x-message-ttl" => delay * 1_000,
+         :"x-expires" => delay * 1_000 * 2
+       }
       )
+    end
+
+    def seconds_to_delay(count)
+      (count + 1) ** 2
     end
   end
 end
