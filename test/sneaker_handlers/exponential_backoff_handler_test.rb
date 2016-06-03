@@ -14,7 +14,8 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
       routing_key: ["lifecycle.created", "lifecycle.updated"],
       handler: SneakersHandlers::ExponentialBackoffHandler,
       arguments: {
-        "x-dead-letter-exchange" => "sneakers_handlers.error"
+        "x-dead-letter-exchange" => "sneakers_handlers.error",
+        "x-dead-letter-routing-key" => "sneakers_handlers.exponential_back_test"
       }
 
     def work(payload)
@@ -53,6 +54,49 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
 
     assert_equal 0, retry_queue(4).message_count
     assert_equal 4, error_queue.message_count
+
+    ["timeout", "error", "requeue", "reject"].each do |type_of_failure|
+      FailingWorker.new.run
+      exchange.publish(type_of_failure, routing_key: "lifecycle.created")
+      sleep 0.1
+    end
+
+    assert_equal 4, retry_queue(1).message_count
+    assert_equal 0, retry_queue(4).message_count
+
+    sleep 1
+
+    assert_equal 0, retry_queue(1).message_count
+    assert_equal 4, retry_queue(4).message_count
+
+    sleep 4
+
+    assert_equal 8, error_queue.message_count
+  end
+
+  def test_works_when_shoveling_messages
+    exchange = channel.default_exchange
+
+    ["timeout", "error", "requeue", "reject"].each do |type_of_failure|
+      FailingWorker.new.run
+      exchange.publish(type_of_failure, routing_key: "sneaker_handlers.exponential_back_test")
+      sleep 0.1
+    end
+
+    assert_equal 4, retry_queue(1).message_count
+    assert_equal 0, retry_queue(4).message_count
+    assert_equal 0, error_queue.message_count
+
+    sleep 1
+
+    assert_equal 0, retry_queue(1).message_count
+    assert_equal 4, retry_queue(4).message_count
+    assert_equal 0, error_queue.message_count
+
+    sleep 4
+
+    assert_equal 0, retry_queue(4).message_count
+    assert_equal 4, error_queue.message_count
   end
 
   private
@@ -62,6 +106,7 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
       durable: false,
       arguments: {
         :"x-dead-letter-exchange" => "sneakers_handlers",
+        :"x-dead-letter-routing-key" => "sneaker_handlers.exponential_back_test",
         :"x-message-ttl" => count * 1_000,
         :"x-expires" => count * 1_000 * 2,
       }
