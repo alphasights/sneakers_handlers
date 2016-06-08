@@ -28,9 +28,17 @@ The gem introduces two handlers you can use as part of your sneaker workers: `Sn
 
 When defining your worker, you have the following extra options:
 
-`max_retry` [optional] : The number of times a message will be processed after a rejection
+`x-dead-letter-exchange` [required] : The name of the dead-letter exchange
+where failed messages will be published to.
 
-`x-dead-letter-routing-key` [mandatory] : The routing key that the retry queue will be bound to, usually it is the name of the original queue, for example:
+`x-dead-letter-routing-key` [required] : The routing key that will be used when
+dead-lettering a failed message. This value needs to be unique to your
+application to avoid having the same message delivered to multiple queues. The
+recommendation it to use the queue name.
+
+`max_retry` [optional] : The number of times a message will be processed after
+a rejection.
+
 
 ```ruby
 class MyWorker
@@ -54,12 +62,19 @@ end
 
 ## Using the `SneakersHandlers::ExponentialBackoffHandler` handler
 
-Exponential Backoff isn't really the right phrase for this. It's more
-static configurable backoff. Plan on updating the name in the future.
+When defining your worker, you have the following options:
 
-When defining your worker, you have the following extra options:
+`x-dead-letter-exchange` [required] : The name of the dead-letter exchange
+where failed messages will be published to.
 
-`delay` [required] : An array containing the number of seconds to pause between retries
+`x-dead-letter-routing-key` [required] : The routing key that will be used when
+dead-lettering a failed message. This value needs to be unique to your
+application to avoid having the same message delivered to multiple queues. The
+recommendation it to use the queue name.
+
+`max_retries` [optional] : An integer containing the maximum number of times
+the same messages will be retried. If you don't define this option, `25` is the
+default.
 
 ```ruby
 class MyWorker
@@ -71,7 +86,9 @@ class MyWorker
       exchange_type: :topic,
       routing_key: "resources.lifecycle.*",
       handler: SneakersHandlers::ExponentialBackoffHandler,
-      delay: [1.second, 10.seconds, 1.minute, 10.minutes]
+      max_retries: 10,
+      arguments: { "x-dead-letter-exchange" => "domain_events.dlx",
+                   "x-dead-letter-routing-key" => "my-app.resource_processor" }
 
   def work(payload)
     ...
@@ -81,10 +98,6 @@ end
 
 ## Development
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake test` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+After checking out the repository, run `bin/setup` to install dependencies. Then, run `rake` to run the tests (you will need to have a real `RabbitMQ` instance running). You can also run `bin/console` for an interactive prompt that will allow you to experiment.
 
 To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
-
-## Contributing
-
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/sneakers_handlers.
