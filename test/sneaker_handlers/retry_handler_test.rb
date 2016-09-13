@@ -3,9 +3,15 @@ require "support/retry_worker_failure"
 require "support/retry_worker_success"
 
 class SneakersHandlers::RetryHandlerTest < Minitest::Test
-  def test_max_retry_goes_to_dlx
-    delete_test_queues!
+  def setup
+    cleanup!
+  end
 
+  def teardown
+    cleanup!
+  end
+
+  def test_max_retry_goes_to_dlx
     exchange = channel.topic("sneakers_handlers", durable: false)
 
     RetryWorkerFailure.new.run
@@ -33,7 +39,10 @@ class SneakersHandlers::RetryHandlerTest < Minitest::Test
                  end
   end
 
-  def delete_test_queues!
+  def cleanup!
+    channel.exchange_delete("sneakers_handlers")
+    channel.exchange_delete("sneakers_handlers.dlx")
+
     [RetryWorkerFailure, RetryWorkerSuccess].each do |worker|
       channel.queue_delete(worker.queue_name)
       channel.queue_delete(worker.queue_name + ".dlx")

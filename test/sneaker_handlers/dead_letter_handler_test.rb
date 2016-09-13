@@ -3,10 +3,15 @@ require "support/dead_letter_worker_failure"
 require "support/dead_letter_worker_success"
 
 class SneakersHandlers::DeadLetterHandlerTest < Minitest::Test
+  def setup
+    cleanup!
+  end
+
+  def teardown
+    cleanup!
+  end
 
   def test_dead_letter_messages
-    delete_test_queues!
-
     exchange = channel.topic("sneakers_handlers", durable: false)
 
     DeadLetterWorkerFailure.new.run
@@ -34,7 +39,10 @@ class SneakersHandlers::DeadLetterHandlerTest < Minitest::Test
                  end
   end
 
-  def delete_test_queues!
+  def cleanup!
+    channel.exchange_delete("sneakers_handlers")
+    channel.exchange_delete("sneakers_handlers.dlx")
+
     [DeadLetterWorkerFailure, DeadLetterWorkerSuccess].each do |worker|
       channel.queue_delete(worker.queue_name)
       channel.queue_delete(worker.queue_name + ".dlx")
