@@ -118,7 +118,7 @@ module SneakersHandlers
 
     def create_retry_queue!(delay)
       clear_queues_cache
-      channel.queue( "#{queue.name}.retry.#{delay}",
+      channel.queue("#{queue.name}.retry.#{delay}",
          durable: options[:queue_options][:durable],
          arguments: {
            :"x-dead-letter-exchange" => options[:exchange],
