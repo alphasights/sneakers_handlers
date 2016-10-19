@@ -96,6 +96,12 @@ class MyWorker
 end
 ```
 
+### Backoff Behavior
+
+Every retry is delayed by a power of 2 on the attempt number. The retry attempt is inserted into a new queue with a naming convention of `<queue name>.retry.<delay>`.
+
+After exhausting the maximum number of retries (`max_retries`), the message will be moved into the dead letter exchange.
+
 ## Development
 
 After checking out the repository, run `bin/setup` to install dependencies. Then, run `rake` to run the tests (you will need to have a real `RabbitMQ` instance running). You can also run `bin/console` for an interactive prompt that will allow you to experiment.
