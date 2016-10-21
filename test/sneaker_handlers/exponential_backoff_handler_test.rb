@@ -99,6 +99,50 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
     assert_equal 4, error_queue.message_count
   end
 
+  def test_custom_backoff_function
+    exchange = channel.default_exchange
+
+    Class.new do
+      include Sneakers::Worker
+
+      from_queue "sneaker_handlers.exponential_back_test",
+        ack: true,
+        durable: false,
+        max_retries: 2,
+        exchange: "sneakers_handlers",
+        exchange_type: :topic,
+        routing_key: ["lifecycle.created", "lifecycle.updated"],
+        handler: SneakersHandlers::ExponentialBackoffHandler,
+        backoff_function: ->(attempt_number) { attempt_number + 1 },
+        arguments: {
+          "x-dead-letter-exchange" => "sneakers_handlers.error",
+          "x-dead-letter-routing-key" => "sneakers_handlers.exponential_back_test"
+        }
+
+        def work(payload)
+          return payload.to_sym
+        end
+    end.new.run
+
+    exchange.publish("error", routing_key: "sneaker_handlers.exponential_back_test")
+    sleep 0.1
+
+    assert_equal 1, retry_queue(1).message_count
+    assert_equal 0, retry_queue(2).message_count
+    assert_equal 0, error_queue.message_count
+
+    sleep 1
+
+    assert_equal 0, retry_queue(1).message_count
+    assert_equal 1, retry_queue(2).message_count
+    assert_equal 0, error_queue.message_count
+
+    sleep 2
+
+    assert_equal 0, retry_queue(2).message_count
+    assert_equal 1, error_queue.message_count
+  end
+
   private
 
   def retry_queue(count)
