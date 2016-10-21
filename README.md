@@ -102,6 +102,8 @@ Every retry is delayed by a power of 2 on the attempt number. The retry attempt 
 
 After exhausting the maximum number of retries (`max_retries`), the message will be moved into the dead letter exchange.
 
+For a more detailed explanation of how the backoff handler works, check out the [blog post](https://m.alphasights.com/exponential-backoff-with-rabbitmq-78386b9bec81) we wrote about it.
+
 ## Development
 
 After checking out the repository, run `bin/setup` to install dependencies. Then, run `rake` to run the tests (you will need to have a real `RabbitMQ` instance running). You can also run `bin/console` for an interactive prompt that will allow you to experiment.
