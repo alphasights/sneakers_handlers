@@ -23,15 +23,17 @@
 
 module SneakersHandlers
   class ExponentialBackoffHandler
-    attr_reader :queue, :channel, :options, :max_retries
+    attr_reader :queue, :channel, :options, :max_retries, :backoff_function
 
     DEFAULT_MAX_RETRY_ATTEMPTS = 25
+    DEFAULT_BACKOFF_FUNCTION = -> (attempt_number) { (attempt_number + 1) ** 2 }
 
     def initialize(channel, queue, options)
       @queue = queue
       @channel = channel
       @options = options
       @max_retries = options[:max_retries] || DEFAULT_MAX_RETRY_ATTEMPTS
+      @backoff_function  = options[:backoff_function] || DEFAULT_BACKOFF_FUNCTION
 
       create_error_exchange!
 
@@ -63,7 +65,7 @@ module SneakersHandlers
       attempt_number = death_count(properties[:headers])
 
       if attempt_number < max_retries
-        delay = seconds_to_delay(attempt_number)
+        delay = backoff_function.call(attempt_number)
 
         log("msg=retrying, delay=#{delay}, count=#{attempt_number}, properties=#{properties}, reason=#{reason}")
 
@@ -127,10 +129,6 @@ module SneakersHandlers
            :"x-expires" => delay * 1_000 * 2
          }
         )
-    end
-
-    def seconds_to_delay(count)
-      (count + 1) ** 2
     end
 
     # When we create a new queue, `Bunny` stores its name in an internal cache.
