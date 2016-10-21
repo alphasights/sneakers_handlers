@@ -1,8 +1,106 @@
 # SneakersHandlers
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/sneakers_handlers`. To experiment with that code, run `bin/console` for an interactive prompt.
+The gem introduces three handlers you can use as part of your [`Sneakers`](https://github.com/jondot/sneakers) workers: 
 
-TODO: Delete this and the text above, and describe your gem
+* `SneakersHandlers::DeadLetterHandler`
+* `SneakersHandlers::RetryHandler` 
+* `SneakersHandlers::ExponentialBackoffHandler`.
+
+`Sneakers` handlers are used to define custom behaviours to different scenarios (e.g. a success, error, timeout, etc.). 
+
+By default `Sneakers` uses a handler called [`OneShot`](https://github.com/jondot/sneakers/blob/41883dd0df8b360c8d6e2f29101c960d5650f711/lib/sneakers/handlers/oneshot.rb) that,
+as the name indicates, will try to execute the message only once, and `reject` it if something goes wrong. That can be fine for some workers, but we usually need something that will be able
+to handle failed messages in a better way, either by sending them to a [dead-letter exchange](https://www.rabbitmq.com/dlx.html) or by trying to execute them again.
+
+## Using the `DeadLetterHandler`
+
+The `DeadLetterHandler` is an extension of the default `OneShot` handler. It will try to process the message only once, and when something goes wrong it will publish this message to the dead letter exchange.
+
+When defining your worker, you have to define these extra arguments:
+
+`x-dead-letter-exchange`: The name of the dead-letter exchange where failed messages will be published to.
+
+`x-dead-letter-routing-key`: The routing key that will be used when dead-lettering a failed message. This value needs to be unique to your
+application to avoid having the same message delivered to multiple queues. The recommendation is to use the queue name, although that's not mandatory.
+
+Here's an example:
+
+```diff
+class DeadLetterWorker
+  include Sneakers::Worker
+
+  from_queue "sneakers_handlers.my_queue",
+    ack: true,
+    exchange: "sneakers_handlers",
+    exchange_type: :topic,
+    routing_key: "sneakers_handlers.dead_letter_test",
++   handler: SneakersHandlers::DeadLetterHandler,
++   arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
++                "x-dead-letter-routing-key" => "sneakers_handlers.my_queue" }
+
+  def work(*args)
+    ack!
+  end
+end
+```
+
+## Using the `RetryHandler`
+
+The `RetryHandler` will try to execute the message `max_retry` times before dead-lettering it. The setup is very similar to the `DeadLetterHandler`, the only difference if that you can
+also provide a `max_retry` argument, that will specify how many times the handler should try to execute this message.
+
+```diff
+class RetryWorker
+  include Sneakers::Worker
+
+  from_queue "sneakers_handlers.my_queue",
+      ack: true,
+      exchange: "sneaker_handlers",
+      exchange_type: :topic,
+      routing_key: "sneakers_handlers.retry_test",
++     handler: Sneakers::Handlers::RetryHandler,
++     max_retry: 50,
++     arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
++                  "x-dead-letter-routing-key" => "sneakers_handlers.my_queue" }
+
+  def work(*args)
+    ack!
+  end
+end
+```
+
+When a message fails, it will be published back to the end of the queue, so, assuming the queue is empty, there will be no delay (other than the network latency) between these retries.
+
+## Using the `ExponentialBackoffHandler`
+
+With this handler every retry is delayed by a power of 2 on the attempt number. The retry attempt is inserted into a new queue with a naming convention of `<queue name>.retry.<delay>`.
+After exhausting the maximum number of retries (`max_retries`), the message will be moved into the dead letter exchange.
+
+![backoff](https://github.com/alphasights/sneakers_handlers/blob/master/docs/backoff.png)
+
+The setup is also very similar to the other handlers:
+
+```diff
+class ExponentialBackoffWorker
+  include Sneakers::Worker
+
+  from_queue "sneakers_handlers.my_queue",
+      ack: true,
+      exchange: "sneaker_handlers",
+      exchange_type: :topic,
+      routing_key: "sneakers_handlers.backoff_test",
++     handler: Sneakers::Handlers::ExponentialBackoffHandler,
++     max_retries: 50,
++     arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
++                  "x-dead-letter-routing-key" => "sneakers_handlers.my_queue" }
+
+  def work(*args)
+    ack!
+  end
+end
+```
+
+For a more detailed explanation of how the backoff handler works, check out the [blog post](https://m.alphasights.com/exponential-backoff-with-rabbitmq-78386b9bec81) we wrote about it.
 
 ## Installation
 
@@ -19,88 +117,6 @@ And then execute:
 Or install it yourself as:
 
     $ gem install sneakers_handlers
-
-## Usage
-
-The gem introduces two handlers you can use as part of your sneaker workers: `SneakersHandlers::DeadLetterHandler` and `SneakersHandlers::RetryHandler`
-
-## Using the `SneakersHandlers::RetryHandler` handler
-
-When defining your worker, you have the following extra options:
-
-`x-dead-letter-exchange` [required] : The name of the dead-letter exchange
-where failed messages will be published to.
-
-`x-dead-letter-routing-key` [required] : The routing key that will be used when
-dead-lettering a failed message. This value needs to be unique to your
-application to avoid having the same message delivered to multiple queues. The
-recommendation it to use the queue name.
-
-`max_retry` [optional] : The number of times a message will be processed after
-a rejection.
-
-
-```ruby
-class MyWorker
-  include Sneakers::Worker
-  from_queue "my-app.resource_processor",
-      durable: true,
-      ack: true,
-      exchange: "domain_events",
-      exchange_type: :topic,
-      routing_key: "resources.lifecycle.*",
-      handler: Sneakers::Handlers::RetryHandler,
-      max_retry: 6,
-      arguments: { "x-dead-letter-exchange" => "domain_events.dlx",
-                   "x-dead-letter-routing-key" => "my-app.resource_processor" }
-
-  def work(payload)
-    ...
-  end
-end
-```
-
-## Using the `SneakersHandlers::ExponentialBackoffHandler` handler
-
-When defining your worker, you have the following options:
-
-`x-dead-letter-exchange` [required] : The name of the dead-letter exchange
-where failed messages will be published to.
-
-`x-dead-letter-routing-key` [required] : The routing key that will be used when
-dead-lettering a failed message. This value needs to be unique to your
-application to avoid having the same message delivered to multiple queues. The
-recommendation it to use the queue name.
-
-`max_retries` [optional] : An integer containing the maximum number of times
-the same messages will be retried. If you don't define this option, `25` is the
-default.
-
-```ruby
-class MyWorker
-  include Sneakers::Worker
-  from_queue "my-app.resource_processor",
-      durable: true,
-      ack: true,
-      exchange: "domain_events",
-      exchange_type: :topic,
-      routing_key: "resources.lifecycle.*",
-      handler: SneakersHandlers::ExponentialBackoffHandler,
-      max_retries: 10,
-      arguments: { "x-dead-letter-exchange" => "domain_events.dlx",
-                   "x-dead-letter-routing-key" => "my-app.resource_processor" }
-
-  def work(payload)
-    ...
-  end
-end
-```
-
-### Backoff Behavior
-
-Every retry is delayed by a power of 2 on the attempt number. The retry attempt is inserted into a new queue with a naming convention of `<queue name>.retry.<delay>`.
-
-After exhausting the maximum number of retries (`max_retries`), the message will be moved into the dead letter exchange.
 
 For a more detailed explanation of how the backoff handler works, check out the [blog post](https://m.alphasights.com/exponential-backoff-with-rabbitmq-78386b9bec81) we wrote about it.
 
