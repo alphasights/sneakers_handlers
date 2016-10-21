@@ -100,6 +100,30 @@ class ExponentialBackoffWorker
 end
 ```
 
+You can also customize the backoff function defining the `backoff_function` option, that can be any `call`able object (a lambda, a method, a class that responds to `call`, etc.)
+that will receive the current attempt count and should return in how many seconds the message will be retried. 
+
+```diff
+class ExponentialBackoffWorker
+  include Sneakers::Worker
+
+  from_queue "sneakers_handlers.my_queue",
+      ack: true,
+      exchange: "sneaker_handlers",
+      exchange_type: :topic,
+      routing_key: "sneakers_handlers.backoff_test",
+      handler: Sneakers::Handlers::ExponentialBackoffHandler,
++     backoff_function: ->(attempt_number) { attempt_number ** 3 },
+      max_retries: 50,
+      arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
+                   "x-dead-letter-routing-key" => "sneakers_handlers.my_queue" }
+
+  def work(*args)
+    ack!
+  end
+end
+```
+
 For a more detailed explanation of how the backoff handler works, check out the [blog post](https://m.alphasights.com/exponential-backoff-with-rabbitmq-78386b9bec81) we wrote about it.
 
 ## Installation
