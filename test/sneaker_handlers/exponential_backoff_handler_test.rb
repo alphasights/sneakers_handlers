@@ -11,7 +11,7 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
       max_retries: 2,
       exchange: "sneakers_handlers",
       exchange_type: :topic,
-      routing_key: ["lifecycle.created", "lifecycle.updated"],
+      routing_key: "lifecycle.created",
       handler: SneakersHandlers::ExponentialBackoffHandler,
       arguments: {
         "x-dead-letter-exchange" => "sneakers_handlers.error",
@@ -19,6 +19,10 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
       }
 
     def work(payload)
+      if payload == "unhandled_exception"
+        raise "Unhandled exceptions should be retried"
+      end
+
       return payload.to_sym
     end
   end
@@ -34,44 +38,44 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
   def test_handler_retries_with_ttl_retry_queues
     exchange = channel.topic("sneakers_handlers", durable: false)
 
-    ["timeout", "error", "requeue", "reject"].each do |type_of_failure|
+    ["timeout", "error", "requeue", "reject", "unhandled_exception"].each do |type_of_failure|
       FailingWorker.new.run
       exchange.publish(type_of_failure, routing_key: "lifecycle.created")
       sleep 0.1
     end
 
-    assert_equal 4, retry_queue(1).message_count
+    assert_equal 5, retry_queue(1).message_count
     assert_equal 0, retry_queue(4).message_count
     assert_equal 0, error_queue.message_count
 
     sleep 1
 
     assert_equal 0, retry_queue(1).message_count
-    assert_equal 4, retry_queue(4).message_count
+    assert_equal 5, retry_queue(4).message_count
     assert_equal 0, error_queue.message_count
 
     sleep 4
 
     assert_equal 0, retry_queue(4).message_count
-    assert_equal 4, error_queue.message_count
+    assert_equal 5, error_queue.message_count
 
-    ["timeout", "error", "requeue", "reject"].each do |type_of_failure|
+    ["timeout", "error", "requeue", "reject", "unhandled_exception"].each do |type_of_failure|
       FailingWorker.new.run
       exchange.publish(type_of_failure, routing_key: "lifecycle.created")
       sleep 0.1
     end
 
-    assert_equal 4, retry_queue(1).message_count
+    assert_equal 5, retry_queue(1).message_count
     assert_equal 0, retry_queue(4).message_count
 
     sleep 1
 
     assert_equal 0, retry_queue(1).message_count
-    assert_equal 4, retry_queue(4).message_count
+    assert_equal 5, retry_queue(4).message_count
 
     sleep 4
 
-    assert_equal 8, error_queue.message_count
+    assert_equal 10, error_queue.message_count
   end
 
   def test_works_when_shoveling_messages
