@@ -58,7 +58,7 @@ class RetryWorker
       exchange: "sneaker_handlers",
       exchange_type: :topic,
       routing_key: "sneakers_handlers.retry_test",
-+     handler: Sneakers::Handlers::RetryHandler,
++     handler: SneakersHandlers::RetryHandler,
 +     max_retry: 50,
 +     arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
 +                  "x-dead-letter-routing-key" => "sneakers_handlers.my_queue" }
@@ -89,7 +89,7 @@ class ExponentialBackoffWorker
       exchange: "sneaker_handlers",
       exchange_type: :topic,
       routing_key: "sneakers_handlers.backoff_test",
-+     handler: Sneakers::Handlers::ExponentialBackoffHandler,
++     handler: SneakersHandlers::ExponentialBackoffHandler,
 +     max_retries: 50,
 +     arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
 +                  "x-dead-letter-routing-key" => "sneakers_handlers.my_queue" }
@@ -112,7 +112,7 @@ class ExponentialBackoffWorker
       exchange: "sneaker_handlers",
       exchange_type: :topic,
       routing_key: "sneakers_handlers.backoff_test",
-      handler: Sneakers::Handlers::ExponentialBackoffHandler,
+      handler: SneakersHandlers::ExponentialBackoffHandler,
 +     backoff_function: ->(attempt_number) { attempt_number ** 3 },
       max_retries: 50,
       arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
