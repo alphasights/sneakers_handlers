@@ -3,6 +3,7 @@ require "sneakers_handlers"
 require "minitest/autorun"
 require "minitest/reporters"
 require "sneakers"
+require 'pry-byebug'
 
 Minitest::Reporters.use! Minitest::Reporters::DefaultReporter.new(color: true)
 

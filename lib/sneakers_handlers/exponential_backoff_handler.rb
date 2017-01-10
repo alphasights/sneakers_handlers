@@ -49,7 +49,7 @@ module SneakersHandlers
     end
 
     def error(delivery_info, properties, message, err)
-      retry_message(delivery_info, properties, message, err)
+      retry_message(delivery_info, properties, message, err.inspect)
     end
 
     def timeout(delivery_info, properties, message)
@@ -74,7 +74,8 @@ module SneakersHandlers
         retry_queue = create_retry_queue!(delay)
         retry_queue.bind(primary_exchange, routing_key: routing_key)
 
-        primary_exchange.publish(message, routing_key: routing_key, headers: properties[:headers])
+        headers = (properties[:headers] || {}).merge(rejection_reason: reason.to_s)
+        primary_exchange.publish(message, routing_key: routing_key, headers: headers)
         acknowledge(delivery_info, properties, message)
       else
         log("msg=erroring, count=#{attempt_number}, properties=#{properties}")
