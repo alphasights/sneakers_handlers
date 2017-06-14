@@ -142,8 +142,6 @@ Or install it yourself as:
 
     $ gem install sneakers_handlers
 
-For a more detailed explanation of how the backoff handler works, check out the [blog post](https://m.alphasights.com/exponential-backoff-with-rabbitmq-78386b9bec81) we wrote about it.
-
 ## Development
 
 After checking out the repository, run `bin/setup` to install dependencies. Then, run `rake` to run the tests (you will need to have a real `RabbitMQ` instance running). You can also run `bin/console` for an interactive prompt that will allow you to experiment.
