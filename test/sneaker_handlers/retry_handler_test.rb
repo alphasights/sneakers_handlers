@@ -1,11 +1,15 @@
 require "test_helper"
-require "support/retry_worker_failure"
-require "support/retry_worker_success"
 
 class SneakersHandlers::RetryHandlerTest < Minitest::Test
-  def test_max_retry_goes_to_dlx
-    delete_test_queues!
+  def setup
+    cleanup!
+  end
 
+  def teardown
+    cleanup!
+  end
+
+  def test_max_retry_goes_to_dlx
     exchange = channel.topic("sneakers_handlers", durable: false)
 
     RetryWorkerFailure.new.run
@@ -17,8 +21,27 @@ class SneakersHandlers::RetryHandlerTest < Minitest::Test
 
     sleep 0.1 # wait for the worker to deal with messages
 
-    success_dead_letter_queue = channel.queue(RetryWorkerSuccess.queue_name + ".dlx")
-    failure_dead_letter_queue = channel.queue(RetryWorkerFailure.queue_name + ".dlx")
+    success_dead_letter_queue = channel.queue(RetryWorkerSuccess.queue_name + ".error")
+    failure_dead_letter_queue = channel.queue(RetryWorkerFailure.queue_name + ".error")
+
+    assert_equal 2, failure_dead_letter_queue.message_count
+    assert_equal 0, success_dead_letter_queue.message_count
+  end
+
+  def test_works_with_fanout_exchange
+    exchange = channel.fanout("sneakers_handlers", durable: false)
+
+    RetryFanoutWorkerFailure.new.run
+    RetryFanoutWorkerSuccess.new.run
+
+    2.times do
+      exchange.publish("{}")
+    end
+
+    sleep 0.1 # wait for the worker to deal with messages
+
+    success_dead_letter_queue = channel.queue(RetryFanoutWorkerSuccess.queue_name + ".error")
+    failure_dead_letter_queue = channel.queue(RetryFanoutWorkerFailure.queue_name + ".error")
 
     assert_equal 2, failure_dead_letter_queue.message_count
     assert_equal 0, success_dead_letter_queue.message_count
@@ -33,10 +56,85 @@ class SneakersHandlers::RetryHandlerTest < Minitest::Test
                  end
   end
 
-  def delete_test_queues!
+  def cleanup!
+    channel.exchange_delete("sneakers_handlers")
+    channel.exchange_delete("sneakers_handlers.dlx")
+
     [RetryWorkerFailure, RetryWorkerSuccess].each do |worker|
       channel.queue_delete(worker.queue_name)
-      channel.queue_delete(worker.queue_name + ".dlx")
+      channel.queue_delete(worker.queue_name + ".error")
     end
+  end
+end
+
+class RetryWorkerSuccess
+  include Sneakers::Worker
+
+  from_queue "sneaker_handlers.retry_success_test",
+  ack: true,
+  durable: false,
+  exchange: "sneakers_handlers",
+  exchange_type: :topic,
+  routing_key: "sneakers_handlers.retry_test",
+  handler: SneakersHandlers::RetryHandler,
+  arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
+               "x-dead-letter-routing-key" => "sneaker_handlers.retry_success_test" }
+
+  def work(payload)
+    return ack!
+  end
+end
+
+class RetryWorkerFailure
+  include Sneakers::Worker
+
+  from_queue "sneaker_handlers.retry_failure_test",
+  ack: true,
+  durable: false,
+  exchange: "sneakers_handlers",
+  exchange_type: :topic,
+  routing_key: "sneakers_handlers.retry_test",
+  handler: SneakersHandlers::RetryHandler,
+  arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
+               "x-dead-letter-routing-key" => "sneaker_handlers.retry_failure_test" }
+
+  def work(payload)
+    return reject!
+  end
+end
+
+class RetryFanoutWorkerSuccess
+  include Sneakers::Worker
+
+  from_queue "sneaker_handlers.retry_success_test",
+  ack: true,
+  durable: false,
+  exchange: "sneakers_handlers",
+  exchange_type: :fanout,
+  routing_key: "sneakers_handlers.retry_test",
+  handler: SneakersHandlers::RetryHandler,
+  arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
+               "x-dead-letter-routing-key" => "sneaker_handlers.retry_success_test" }
+
+  def work(payload)
+    return ack!
+  end
+end
+
+class RetryFanoutWorkerFailure
+  include Sneakers::Worker
+
+  from_queue "sneaker_handlers.retry_failure_test",
+  ack: true,
+  durable: false,
+  exchange: "sneakers_handlers",
+  exchange_type: :fanout,
+  routing_key: "sneakers_handlers.retry_test",
+  handler: SneakersHandlers::RetryHandler,
+  arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
+               "x-dead-letter-routing-key" => "sneaker_handlers.retry_failure_test" }
+
+  def work(payload)
+    return reject!
   end
 end

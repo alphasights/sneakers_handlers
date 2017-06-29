@@ -12,11 +12,11 @@ module SneakersHandlers
       arguments = options[:queue_options][:arguments]
 
       dlx = channel.exchange(arguments.fetch("x-dead-letter-exchange"), {
-        type: options[:exchange_options][:type],
+        type: "topic",
         durable: options[:exchange_options][:durable],
       })
 
-      dlx_queue = channel.queue("#{queue.name}.dlx", durable: options[:queue_options][:durable])
+      dlx_queue = channel.queue("#{queue.name}.error", durable: options[:queue_options][:durable])
       dlx_queue.bind(dlx, routing_key: arguments.fetch("x-dead-letter-routing-key"))
     end
   end
