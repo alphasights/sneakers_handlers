@@ -76,6 +76,14 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
     sleep 4
 
     assert_equal 10, error_queue.message_count
+
+    rejection_reasons = error_queue.message_count.times.map do
+      _delivery_info, properties, _message = channel.basic_get(error_queue.name, manual_ack: false)
+      properties.dig(:headers, "rejection_reason")
+    end.uniq
+
+    expected_reasons = ["timeout", "nil", "reject", "#<RuntimeError: Unhandled exceptions should be retried>"]
+    assert_equal expected_reasons.sort, rejection_reasons.sort
   end
 
   def test_works_when_shoveling_messages
