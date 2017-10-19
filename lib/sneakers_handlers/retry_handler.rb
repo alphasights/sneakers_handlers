@@ -38,15 +38,15 @@ module SneakersHandlers
     end
 
     def reject(hdr, props, msg, requeue = false)
-      retry_message(hdr, props, msg)
+      retry_message(hdr, props, msg, :reject)
     end
 
-    def error(hdr, props, msg, _err)
-      retry_message(hdr, props, msg)
+    def error(hdr, props, msg, err)
+      retry_message(hdr, props, msg, err.inspect)
     end
 
     def timeout(hdr, props, msg)
-      retry_message(hdr, props, msg)
+      retry_message(hdr, props, msg, :timeout)
     end
 
     def noop(_hdr, _props, _msg)
@@ -67,18 +67,20 @@ module SneakersHandlers
       @dlx_queue.bind(dlx_exchange, routing_key: arguments.fetch("x-dead-letter-routing-key"))
     end
 
-    def retry_message(hdr, props, msg)
+    def retry_message(hdr, props, msg, reason)
       headers = props[:headers] || {}
       retry_count = headers["x-retry-count"] || 1
       if retry_count >= @max_retry
         @channel.reject(hdr.delivery_tag)
       else
         Sneakers.logger.info do
-          "Retrying message: queue=#{@queue.name} retry_count=#{retry_count}."
+          "Retrying message: queue=#{@queue.name} retry_count=#{retry_count} reason=#{reason}."
         end
+
+        headers = headers.merge({ "x-retry-count": retry_count + 1, "rejection_reason": reason.to_s })
         @channel.default_exchange.publish(msg,
                                           routing_key: @queue.name,
-                                          headers: { "x-retry-count": retry_count + 1 })
+                                          headers: headers)
         @channel.acknowledge(hdr.delivery_tag, false)
       end
     end
