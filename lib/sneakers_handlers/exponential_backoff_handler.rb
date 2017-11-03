@@ -75,12 +75,25 @@ module SneakersHandlers
         retry_queue.bind(primary_exchange, routing_key: routing_key)
 
         headers = (properties[:headers] || {}).merge(rejection_reason: reason.to_s)
+        headers = remove_delayed_message_header(headers)
         primary_exchange.publish(message, routing_key: routing_key, headers: headers)
         acknowledge(delivery_info, properties, message)
       else
         log("msg=erroring, count=#{attempt_number}, properties=#{properties}")
         channel.reject(delivery_info.delivery_tag)
       end
+    end
+
+    # This is the header used by the `rabbitmq-delayed-message-exchange`
+    # plugin.  We need to remove it otherwise the messages that are published
+    # to the retry queues would also be delayed. This becomes a bigger problem
+    # when we have queues that expire (using `x-expires`) shortly after they
+    # are created. If, for instance, we have a retry queue that expires in 5
+    # seconds, and we publish a message with `x-delay` of `6000`, by the time
+    # this message is ready to be published, the queue doesn't exist anymore,
+    # resulting in a message loss.
+    def remove_delayed_message_header(headers)
+      headers.reject { |k| k == "x-delay" }
     end
 
     def death_count(headers)
@@ -97,14 +110,14 @@ module SneakersHandlers
       end
     end
 
-    def create_exchange(name)
+    def create_exchange(name, type = "topic")
       log("creating exchange=#{name}")
 
-      channel.exchange(name, type: "topic", durable: options[:exchange_options][:durable])
+      channel.exchange(name, type: type, durable: options[:exchange_options][:durable])
     end
 
     def primary_exchange
-      @primary_exchange ||= create_exchange("#{options[:exchange]}")
+      @primary_exchange ||= create_exchange(options[:exchange], options[:exchange_options][:type])
     end
 
     def create_error_exchange!
