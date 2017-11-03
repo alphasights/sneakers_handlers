@@ -155,6 +155,49 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
     assert_equal 1, error_queue.message_count
   end
 
+  def test_respects_primary_exchange_type
+    exchange = channel.default_exchange
+
+    Class.new do
+      include Sneakers::Worker
+
+      from_queue "sneaker_handlers.exponential_back_test",
+        ack: true,
+        durable: false,
+        max_retries: 2,
+        exchange: "sneakers_handlers",
+        exchange_type: :direct,
+        routing_key: ["lifecycle.created", "lifecycle.updated"],
+        handler: SneakersHandlers::ExponentialBackoffHandler,
+        arguments: {
+          "x-dead-letter-exchange" => "sneakers_handlers.error",
+          "x-dead-letter-routing-key" => "sneakers_handlers.exponential_back_test"
+        }
+
+        def work(payload)
+          return :reject
+        end
+    end.new.run
+
+    exchange.publish("", routing_key: "sneaker_handlers.exponential_back_test")
+    sleep 0.1
+
+    assert_equal 1, retry_queue(1).message_count
+  end
+
+  def test_removes_x_delay_header
+    exchange = channel.topic("sneakers_handlers", durable: false)
+
+    FailingWorker.new.run
+    exchange.publish("error", routing_key: "lifecycle.created", headers: { "x-delay" => 1 })
+    sleep 0.1
+
+    assert_equal 1, retry_queue(1).message_count
+    _, args, _ = retry_queue(1).pop
+    assert args[:headers].is_a?(Hash)
+    refute args[:headers].has_key?("x-delay"), "Should remove the x-delay header"
+  end
+
   private
 
   def retry_queue(count)
