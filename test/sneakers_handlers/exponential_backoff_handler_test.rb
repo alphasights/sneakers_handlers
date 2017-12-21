@@ -5,7 +5,7 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
   class FailingWorker
     include Sneakers::Worker
 
-    from_queue "sneaker_handlers.exponential_back_test",
+    from_queue "sneakers_handlers.exponential_backoff_test",
       ack: true,
       durable: false,
       max_retries: 2,
@@ -15,7 +15,7 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
       handler: SneakersHandlers::ExponentialBackoffHandler,
       arguments: {
         "x-dead-letter-exchange" => "sneakers_handlers.error",
-        "x-dead-letter-routing-key" => "sneakers_handlers.exponential_back_test"
+        "x-dead-letter-routing-key" => "sneakers_handlers.exponential_backoff_test"
       }
 
     def work(payload)
@@ -91,7 +91,7 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
 
     ["timeout", "error", "requeue", "reject"].each do |type_of_failure|
       FailingWorker.new.run
-      exchange.publish(type_of_failure, routing_key: "sneaker_handlers.exponential_back_test")
+      exchange.publish(type_of_failure, routing_key: "sneakers_handlers.exponential_backoff_test")
       sleep 0.1
     end
 
@@ -111,13 +111,48 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
     assert_equal 4, error_queue.message_count
   end
 
+  def test_records_reason_for_last_failure
+    exchange = channel.default_exchange
+
+    Class.new do
+      include Sneakers::Worker
+
+      from_queue "sneakers_handlers.exponential_backoff_test",
+        ack: true,
+        durable: false,
+        max_retries: 0,
+        exchange: "sneakers_handlers",
+        exchange_type: :topic,
+        routing_key: ["lifecycle.created", "lifecycle.updated"],
+        handler: SneakersHandlers::ExponentialBackoffHandler,
+        arguments: {
+          "x-dead-letter-exchange" => "sneakers_handlers.error",
+          "x-dead-letter-routing-key" => "sneakers_handlers.exponential_backoff_test"
+        }
+
+        def work(_payload)
+          raise "The reason"
+        end
+    end.new.run
+
+    exchange.publish("", routing_key: "sneakers_handlers.exponential_backoff_test")
+    sleep 0.1
+
+    assert_equal 1, error_queue.message_count
+
+    _delivery_info, properties, _message = channel.basic_get(error_queue.name, manual_ack: false)
+    rejection_reason = properties.dig(:headers, "rejection_reason")
+
+    assert_equal "#<RuntimeError: The reason>", rejection_reason
+  end
+
   def test_custom_backoff_function
     exchange = channel.default_exchange
 
     Class.new do
       include Sneakers::Worker
 
-      from_queue "sneaker_handlers.exponential_back_test",
+      from_queue "sneakers_handlers.exponential_backoff_test",
         ack: true,
         durable: false,
         max_retries: 2,
@@ -128,7 +163,7 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
         backoff_function: ->(attempt_number) { attempt_number + 1 },
         arguments: {
           "x-dead-letter-exchange" => "sneakers_handlers.error",
-          "x-dead-letter-routing-key" => "sneakers_handlers.exponential_back_test"
+          "x-dead-letter-routing-key" => "sneakers_handlers.exponential_backoff_test"
         }
 
         def work(payload)
@@ -136,7 +171,7 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
         end
     end.new.run
 
-    exchange.publish("error", routing_key: "sneaker_handlers.exponential_back_test")
+    exchange.publish("error", routing_key: "sneakers_handlers.exponential_backoff_test")
     sleep 0.1
 
     assert_equal 1, retry_queue(1).message_count
@@ -161,7 +196,7 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
     Class.new do
       include Sneakers::Worker
 
-      from_queue "sneaker_handlers.exponential_back_test",
+      from_queue "sneakers_handlers.exponential_backoff_test",
         ack: true,
         durable: false,
         max_retries: 2,
@@ -171,7 +206,7 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
         handler: SneakersHandlers::ExponentialBackoffHandler,
         arguments: {
           "x-dead-letter-exchange" => "sneakers_handlers.error",
-          "x-dead-letter-routing-key" => "sneakers_handlers.exponential_back_test"
+          "x-dead-letter-routing-key" => "sneakers_handlers.exponential_backoff_test"
         }
 
         def work(payload)
@@ -179,7 +214,7 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
         end
     end.new.run
 
-    exchange.publish("", routing_key: "sneaker_handlers.exponential_back_test")
+    exchange.publish("", routing_key: "sneakers_handlers.exponential_backoff_test")
     sleep 0.1
 
     assert_equal 1, retry_queue(1).message_count
@@ -201,11 +236,11 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
   private
 
   def retry_queue(count)
-    channel.queue("sneaker_handlers.exponential_back_test.retry.#{count}",
+    channel.queue("sneakers_handlers.exponential_backoff_test.retry.#{count}",
       durable: false,
       arguments: {
         :"x-dead-letter-exchange" => "sneakers_handlers",
-        :"x-dead-letter-routing-key" => "sneaker_handlers.exponential_back_test",
+        :"x-dead-letter-routing-key" => "sneakers_handlers.exponential_backoff_test",
         :"x-message-ttl" => count * 1_000,
         :"x-expires" => count * 1_000 * 2,
       }
@@ -213,7 +248,7 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
   end
 
   def error_queue
-    channel.queue("sneaker_handlers.exponential_back_test.error")
+    channel.queue("sneakers_handlers.exponential_backoff_test.error")
   end
 
   def channel

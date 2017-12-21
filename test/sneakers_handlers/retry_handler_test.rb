@@ -80,7 +80,7 @@ end
 class RetryWorkerSuccess
   include Sneakers::Worker
 
-  from_queue "sneaker_handlers.retry_success_test",
+  from_queue "sneakers_handlers.retry_success_test",
   ack: true,
   durable: false,
   exchange: "sneakers_handlers",
@@ -88,7 +88,7 @@ class RetryWorkerSuccess
   routing_key: "sneakers_handlers.retry_test",
   handler: SneakersHandlers::RetryHandler,
   arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
-               "x-dead-letter-routing-key" => "sneaker_handlers.retry_success_test" }
+               "x-dead-letter-routing-key" => "sneakers_handlers.retry_success_test" }
 
   def work(payload)
     return ack!
@@ -98,7 +98,7 @@ end
 class RetryWorkerError
   include Sneakers::Worker
 
-  from_queue "sneaker_handlers.retry_error_test",
+  from_queue "sneakers_handlers.retry_error_test",
   ack: true,
   durable: false,
   exchange: "sneakers_handlers",
@@ -106,7 +106,7 @@ class RetryWorkerError
   routing_key: "sneakers_handlers.retry_test",
   handler: SneakersHandlers::RetryHandler,
   arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
-               "x-dead-letter-routing-key" => "sneaker_handlers.retry_error_test" }
+               "x-dead-letter-routing-key" => "sneakers_handlers.retry_error_test" }
 
   def work(payload)
     raise "exceptions are also handled"
@@ -116,7 +116,7 @@ end
 class RetryWorkerFailure
   include Sneakers::Worker
 
-  from_queue "sneaker_handlers.retry_failure_test",
+  from_queue "sneakers_handlers.retry_failure_test",
   ack: true,
   durable: false,
   exchange: "sneakers_handlers",
@@ -124,7 +124,7 @@ class RetryWorkerFailure
   routing_key: "sneakers_handlers.retry_test",
   handler: SneakersHandlers::RetryHandler,
   arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
-               "x-dead-letter-routing-key" => "sneaker_handlers.retry_failure_test" }
+               "x-dead-letter-routing-key" => "sneakers_handlers.retry_failure_test" }
 
   def work(payload)
     return reject!
@@ -134,7 +134,7 @@ end
 class RetryFanoutWorkerSuccess
   include Sneakers::Worker
 
-  from_queue "sneaker_handlers.retry_success_test",
+  from_queue "sneakers_handlers.retry_success_test",
   ack: true,
   durable: false,
   exchange: "sneakers_handlers",
@@ -142,7 +142,7 @@ class RetryFanoutWorkerSuccess
   routing_key: "sneakers_handlers.retry_test",
   handler: SneakersHandlers::RetryHandler,
   arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
-               "x-dead-letter-routing-key" => "sneaker_handlers.retry_success_test" }
+               "x-dead-letter-routing-key" => "sneakers_handlers.retry_success_test" }
 
   def work(payload)
     return ack!
@@ -152,7 +152,7 @@ end
 class RetryFanoutWorkerFailure
   include Sneakers::Worker
 
-  from_queue "sneaker_handlers.retry_failure_test",
+  from_queue "sneakers_handlers.retry_failure_test",
   ack: true,
   durable: false,
   exchange: "sneakers_handlers",
@@ -160,7 +160,7 @@ class RetryFanoutWorkerFailure
   routing_key: "sneakers_handlers.retry_test",
   handler: SneakersHandlers::RetryHandler,
   arguments: { "x-dead-letter-exchange" => "sneakers_handlers.dlx",
-               "x-dead-letter-routing-key" => "sneaker_handlers.retry_failure_test" }
+               "x-dead-letter-routing-key" => "sneakers_handlers.retry_failure_test" }
 
   def work(payload)
     return reject!
