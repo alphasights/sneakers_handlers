@@ -55,7 +55,7 @@ class RetryWorker
 
   from_queue "sneakers_handlers.my_queue",
       ack: true,
-      exchange: "sneaker_handlers",
+      exchange: "sneakers_handlers",
       exchange_type: :topic,
       routing_key: "sneakers_handlers.retry_test",
 +     handler: SneakersHandlers::RetryHandler,
@@ -86,7 +86,7 @@ class ExponentialBackoffWorker
 
   from_queue "sneakers_handlers.my_queue",
       ack: true,
-      exchange: "sneaker_handlers",
+      exchange: "sneakers_handlers",
       exchange_type: :topic,
       routing_key: "sneakers_handlers.backoff_test",
 +     handler: SneakersHandlers::ExponentialBackoffHandler,
@@ -109,7 +109,7 @@ class ExponentialBackoffWorker
 
   from_queue "sneakers_handlers.my_queue",
       ack: true,
-      exchange: "sneaker_handlers",
+      exchange: "sneakers_handlers",
       exchange_type: :topic,
       routing_key: "sneakers_handlers.backoff_test",
       handler: SneakersHandlers::ExponentialBackoffHandler,

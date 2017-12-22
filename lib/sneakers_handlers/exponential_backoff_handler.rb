@@ -63,6 +63,8 @@ module SneakersHandlers
 
     def retry_message(delivery_info, properties, message, reason)
       attempt_number = death_count(properties[:headers])
+      headers = (properties[:headers] || {}).merge(rejection_reason: reason.to_s)
+      headers = remove_delayed_message_header(headers)
 
       if attempt_number < max_retries
         delay = backoff_function.call(attempt_number)
@@ -74,14 +76,13 @@ module SneakersHandlers
         retry_queue = create_retry_queue!(delay)
         retry_queue.bind(primary_exchange, routing_key: routing_key)
 
-        headers = (properties[:headers] || {}).merge(rejection_reason: reason.to_s)
-        headers = remove_delayed_message_header(headers)
         primary_exchange.publish(message, routing_key: routing_key, headers: headers)
-        acknowledge(delivery_info, properties, message)
       else
         log("msg=erroring, count=#{attempt_number}, properties=#{properties}")
-        channel.reject(delivery_info.delivery_tag)
+        error_exchange.publish(message, routing_key: dlx_routing_key, headers: headers)
       end
+
+      acknowledge(delivery_info, properties, message)
     end
 
     # This is the header used by the `rabbitmq-delayed-message-exchange`
@@ -120,16 +121,23 @@ module SneakersHandlers
       @primary_exchange ||= create_exchange(options[:exchange], options[:exchange_options][:type])
     end
 
+    def error_exchange
+      @error_exchange ||= create_error_exchange!
+    end
+
     def create_error_exchange!
-      arguments = options[:queue_options][:arguments]
-
-      dlx_exchange_name = arguments.fetch("x-dead-letter-exchange")
-      dlx_routing_key = arguments.fetch("x-dead-letter-routing-key")
-
-      @error_exchange ||= create_exchange(dlx_exchange_name).tap do |exchange|
+      create_exchange(dlx_exchange_name).tap do |exchange|
         queue = channel.queue("#{@queue.name}.error", durable: options[:queue_options][:durable])
         queue.bind(exchange, routing_key: dlx_routing_key)
       end
+    end
+
+    def dlx_routing_key
+      options[:queue_options][:arguments].fetch("x-dead-letter-routing-key")
+    end
+
+    def dlx_exchange_name
+      options[:queue_options][:arguments].fetch("x-dead-letter-exchange")
     end
 
     def create_retry_queue!(delay)
