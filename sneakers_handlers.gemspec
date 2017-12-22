@@ -8,6 +8,7 @@ Gem::Specification.new do |spec|
   spec.version       = SneakersHandlers::VERSION
   spec.authors       = ["John Bohn, Abe Petrillo, Brian Storti"]
   spec.email         = ["abe.petrillo@gmail.com"]
+  spec.licenses      = ['MIT']
 
   spec.summary       = %q{Adds Handlers to use with Sneakers}
   spec.description   = %q{Adds handlers to support retry and custom shoveling}
@@ -19,11 +20,12 @@ Gem::Specification.new do |spec|
   spec.bindir        = "exe"
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
+  spec.required_ruby_version = "~> 2.0"
 
-  spec.add_dependency "sneakers"
-  spec.add_development_dependency "bundler"
+  spec.add_dependency "sneakers", "~> 2.0"
+  spec.add_development_dependency "bundler", "~> 1.9"
   spec.add_development_dependency "rake", "~> 10.0"
   spec.add_development_dependency "minitest", "~> 5.0"
-  spec.add_development_dependency "pry-byebug"
-  spec.add_development_dependency "minitest-reporters"
+  spec.add_development_dependency "pry-byebug", "~> 3.5"
+  spec.add_development_dependency "minitest-reporters", "~> 1.0"
 end
