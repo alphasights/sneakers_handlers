@@ -38,58 +38,58 @@ class SneakersHandlers::ExponentialBackoffHandlerTest < Minitest::Test
   def test_handler_retries_with_ttl_retry_queues
     exchange = channel.topic("sneakers_handlers", durable: false)
 
-    ["timeout", "error", "requeue", "reject", "unhandled_exception"].each do |type_of_failure|
+    ["error", "requeue", "reject", "unhandled_exception"].each do |type_of_failure|
       FailingWorker.new.run
       exchange.publish(type_of_failure, routing_key: "lifecycle.created")
       sleep 0.1
     end
 
-    assert_equal 5, retry_queue(1).message_count
+    assert_equal 4, retry_queue(1).message_count
     assert_equal 0, retry_queue(4).message_count
     assert_equal 0, error_queue.message_count
 
     sleep 1
 
     assert_equal 0, retry_queue(1).message_count
-    assert_equal 5, retry_queue(4).message_count
+    assert_equal 4, retry_queue(4).message_count
     assert_equal 0, error_queue.message_count
 
     sleep 4
 
     assert_equal 0, retry_queue(4).message_count
-    assert_equal 5, error_queue.message_count
+    assert_equal 4, error_queue.message_count
 
-    ["timeout", "error", "requeue", "reject", "unhandled_exception"].each do |type_of_failure|
+    ["error", "requeue", "reject", "unhandled_exception"].each do |type_of_failure|
       FailingWorker.new.run
       exchange.publish(type_of_failure, routing_key: "lifecycle.created")
       sleep 0.1
     end
 
-    assert_equal 5, retry_queue(1).message_count
+    assert_equal 4, retry_queue(1).message_count
     assert_equal 0, retry_queue(4).message_count
 
     sleep 1
 
     assert_equal 0, retry_queue(1).message_count
-    assert_equal 5, retry_queue(4).message_count
+    assert_equal 4, retry_queue(4).message_count
 
     sleep 4
 
-    assert_equal 10, error_queue.message_count
+    assert_equal 8, error_queue.message_count
 
     rejection_reasons = error_queue.message_count.times.map do
       _delivery_info, properties, _message = channel.basic_get(error_queue.name, manual_ack: false)
       properties.dig(:headers, "rejection_reason")
     end.uniq
 
-    expected_reasons = ["timeout", "nil", "reject", "#<RuntimeError: Unhandled exceptions should be retried>"]
+    expected_reasons = ["nil", "reject", "#<RuntimeError: Unhandled exceptions should be retried>"]
     assert_equal expected_reasons.sort, rejection_reasons.sort
   end
 
   def test_works_when_shoveling_messages
     exchange = channel.default_exchange
 
-    ["timeout", "error", "requeue", "reject"].each do |type_of_failure|
+    ["unhandled_exception", "error", "requeue", "reject"].each do |type_of_failure|
       FailingWorker.new.run
       exchange.publish(type_of_failure, routing_key: "sneakers_handlers.exponential_backoff_test")
       sleep 0.1
