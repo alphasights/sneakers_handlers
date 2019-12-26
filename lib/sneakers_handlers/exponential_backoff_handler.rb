@@ -69,7 +69,7 @@ module SneakersHandlers
       if attempt_number < max_retries
         delay = backoff_function.call(attempt_number)
 
-        log("msg=retrying, delay=#{delay}, count=#{attempt_number}, properties=#{properties}, reason=#{reason}")
+        log(message: "msg=retrying, delay=#{delay}, count=#{attempt_number}, properties=#{properties}, reason=#{reason}")
 
         routing_key = "#{queue.name}.#{delay}"
 
@@ -78,11 +78,14 @@ module SneakersHandlers
 
         primary_exchange.publish(message, routing_key: routing_key, headers: headers)
       else
-        log("msg=erroring, count=#{attempt_number}, properties=#{properties}")
+        log(message: "msg=erroring, count=#{attempt_number}, properties=#{properties}")
         error_exchange.publish(message, routing_key: dlx_routing_key, headers: headers)
       end
 
       acknowledge(delivery_info, properties, message)
+    rescue => e
+      log(level: :error, message: "msg=unexpected_handler_error, error='#{e.message}'")
+      raise e
     end
 
     # This is the header used by the `rabbitmq-delayed-message-exchange`
@@ -105,14 +108,14 @@ module SneakersHandlers
       end
     end
 
-    def log(message)
-      Sneakers.logger.info do
+    def log(message:, level: :info)
+      Sneakers.logger.send(level) do
         "[#{self.class}] #{message}"
       end
     end
 
     def create_exchange(name, type = "topic")
-      log("creating exchange=#{name}")
+      log(message: "creating exchange=#{name}")
 
       channel.exchange(name, type: type, durable: options[:exchange_options][:durable])
     end
