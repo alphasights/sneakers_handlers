@@ -83,8 +83,17 @@ module SneakersHandlers
       end
 
       acknowledge(delivery_info, properties, message)
+    rescue Bunny::ConnectionClosedError => e
+      log(level: :error, message: "msg=connection_closed_error, error='#{e.message}'")
+      channel.close if channel.open?
+      raise e
     rescue => e
       log(level: :error, message: "msg=unexpected_handler_error, error='#{e.message}'")
+
+      # In the case of an unhandled exception, we need to `nack` the message so
+      # it doesn't get stuck in the `unacked` state until this process dies.
+      channel.nack(delivery_info.delivery_tag, multiple = false, requeue = true) if channel.open?
+
       raise e
     end
 
