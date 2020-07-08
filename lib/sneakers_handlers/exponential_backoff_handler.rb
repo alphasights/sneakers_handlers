@@ -113,7 +113,7 @@ module SneakersHandlers
       return 0 if headers.nil? || headers["x-death"].nil?
 
       headers["x-death"].inject(0) do |sum, x_death|
-        sum + x_death["count"].to_i if x_death["queue"] =~ /^#{queue.name}/
+        x_death["queue"] =~ /^#{queue.name}/ ? sum + x_death["count"].to_i : 0
       end
     end
 
