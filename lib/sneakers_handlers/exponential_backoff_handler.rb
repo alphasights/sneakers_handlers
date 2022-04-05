@@ -34,8 +34,9 @@ module SneakersHandlers
       @options = options
       @max_retries = options[:max_retries] || DEFAULT_MAX_RETRY_ATTEMPTS
       @backoff_function  = options[:backoff_function] || DEFAULT_BACKOFF_FUNCTION
-
-      create_error_exchange!
+      @retry_queues_mutex = Mutex.new
+      @primary_exchange = create_primary_exchange
+      @error_exchange = create_error_exchange!
 
       queue.bind(primary_exchange, routing_key: queue.name)
     end
@@ -61,6 +62,8 @@ module SneakersHandlers
 
     private
 
+    attr_reader :retry_queues_mutex, :primary_exchange, :error_exchange
+
     def retry_message(delivery_info, properties, message, reason)
       attempt_number = death_count(properties[:headers])
       headers = (properties[:headers] || {}).merge(rejection_reason: reason.to_s)
@@ -73,8 +76,10 @@ module SneakersHandlers
 
         routing_key = "#{queue.name}.#{delay}"
 
-        retry_queue = create_retry_queue!(delay)
-        retry_queue.bind(primary_exchange, routing_key: routing_key)
+        retry_queues_mutex.synchronize do
+          retry_queue = create_retry_queue!(delay)
+          retry_queue.bind(primary_exchange, routing_key: routing_key)
+        end
 
         primary_exchange.publish(message, routing_key: routing_key, headers: headers)
       else
@@ -129,12 +134,8 @@ module SneakersHandlers
       channel.exchange(name, type: type, durable: options[:exchange_options][:durable])
     end
 
-    def primary_exchange
-      @primary_exchange ||= create_exchange(options[:exchange], options[:exchange_options][:type])
-    end
-
-    def error_exchange
-      @error_exchange ||= create_error_exchange!
+    def create_primary_exchange
+      create_exchange(options[:exchange], options[:exchange_options][:type])
     end
 
     def create_error_exchange!
@@ -153,8 +154,17 @@ module SneakersHandlers
     end
 
     def create_retry_queue!(delay)
-      clear_queues_cache
-      channel.queue("#{queue.name}.retry.#{delay}",
+      queue_name = "#{queue.name}.retry.#{delay}"
+
+      # When we create a new queue, `Bunny` stores its name in an internal cache.
+      # The problem is that as we are creating ephemeral queues that can expire shortly
+      # after they are created, this cached queue may not exist anymore when we try to
+      # publish a second message to it.
+      # Removing queues from the cache guarantees that `Bunny` will always try
+      # to check if they exist, and when they don't, it will create them for us.
+      channel.deregister_queue_named(queue_name)
+
+      channel.queue(queue_name,
          durable: options[:queue_options][:durable],
          arguments: {
            :"x-dead-letter-exchange" => options[:exchange],
@@ -163,16 +173,6 @@ module SneakersHandlers
            :"x-expires" => delay * 1_000 * 2
          }
         )
-    end
-
-    # When we create a new queue, `Bunny` stores its name in an internal cache.
-    # The problem is that as we are creating ephemeral queues that can expire shortly
-    # after they are created, this cached queue may not exist anymore when we try to
-    # publish a second message to it.
-    # Removing queues from the cache guarantees that `Bunny` will always try
-    # to check if they exist, and when they don't, it will create them for us.
-    def clear_queues_cache
-      channel.queues.clear
     end
   end
 end
