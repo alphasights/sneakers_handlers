@@ -124,7 +124,7 @@ class ExponentialBackoffWorker
 end
 ```
 
-For a more detailed explanation of how the backoff handler works, check out the [blog post](https://m.alphasights.com/exponential-backoff-with-rabbitmq-78386b9bec81) we wrote about it.
+For a more detailed explanation of how the backoff handler works, check out the [blog post](https://www.brianstorti.com/rabbitmq-exponential-backoff/) we wrote about it.
 
 ## Installation
 
