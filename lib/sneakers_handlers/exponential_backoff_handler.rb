@@ -66,7 +66,9 @@ module SneakersHandlers
 
     def retry_message(delivery_info, properties, message, reason)
       attempt_number = death_count(properties[:headers])
-      headers = (properties[:headers] || {}).merge(rejection_reason: reason.to_s)
+      headers = (properties[:headers] || {})
+          .merge(rejection_reason: reason.to_s)
+          .merge("death-count" => attempt_number + 1)
       headers = remove_delayed_message_header(headers)
 
       if attempt_number < max_retries
@@ -115,11 +117,7 @@ module SneakersHandlers
     end
 
     def death_count(headers)
-      return 0 if headers.nil? || headers["x-death"].nil?
-
-      headers["x-death"].inject(0) do |sum, x_death|
-        sum + x_death["count"] if x_death["queue"] =~ /^#{queue.name}/
-      end
+      headers&.[]("death-count").to_i
     end
 
     def log(message:, level: :info)
