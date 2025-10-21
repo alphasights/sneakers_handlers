@@ -69,7 +69,7 @@ module SneakersHandlers
 
     def retry_message(hdr, props, msg, reason)
       headers = props[:headers] || {}
-      retry_count = headers["x-retry-count"] || 1
+      retry_count = headers["retry_count"] || 1
       if retry_count >= @max_retry
         @channel.reject(hdr.delivery_tag)
       else
@@ -77,7 +77,7 @@ module SneakersHandlers
           "Retrying message: queue=#{@queue.name} retry_count=#{retry_count} reason=#{reason}."
         end
 
-        headers = headers.merge({ "x-retry-count": retry_count + 1, "rejection_reason": reason.to_s })
+        headers = headers.merge({ "retry_count" => retry_count + 1, "rejection_reason" => reason.to_s })
         @channel.default_exchange.publish(msg,
                                           routing_key: @queue.name,
                                           headers: headers)
