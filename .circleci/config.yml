@@ -4,7 +4,7 @@ jobs:
   specs:
     working_directory: ~/app
     docker:
-      - image: circleci/ruby:2.6.3-node-browsers
+      - image: circleci/ruby:2.7-node-browsers
       - image: alphasights/rabbitmq:3.7
     steps:
       - checkout
